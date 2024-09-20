@@ -77,7 +77,7 @@ impl BackendSettings {
 
 #[inline]
 pub fn char_is_word(ch: char) -> bool {
-    ch.is_alphanumeric() || ch == '_'
+    ch.is_alphanumeric() || ch == '_' || ch == '-'
 }
 
 #[inline]
@@ -387,7 +387,26 @@ impl BackendState {
         Ok(result)
     }
 
-    fn words(&self, prefix: &str, doc: &Document) -> impl Iterator<Item = CompletionItem> {
+    fn words<'a>(
+        &self,
+        prefix: &str,
+        doc: &Document,
+        params: &'a CompletionParams,
+    ) -> impl Iterator<Item = CompletionItem> {
+        let line = params.text_document_position.position.line;
+        let start = params.text_document_position.position.character - prefix.len() as u32;
+        let replace_end = params.text_document_position.position.character;
+        let range = Range {
+            start: Position {
+                line,
+                character: start,
+            },
+            end: Position {
+                line,
+                character: replace_end,
+            },
+        };
+
         match self.completion(prefix, doc) {
             Ok(words) => words.into_iter(),
             Err(e) => {
@@ -395,8 +414,13 @@ impl BackendState {
                 HashSet::new().into_iter()
             }
         }
-        .map(|word| CompletionItem {
-            label: word,
+        .map(move |word| CompletionItem {
+            label: word.clone(),
+            text_edit: Some(CompletionTextEdit::InsertAndReplace(InsertReplaceEdit {
+                replace: range,
+                insert: range,
+                new_text: word,
+            })),
             kind: Some(CompletionItemKind::TEXT),
             ..Default::default()
         })
@@ -712,7 +736,7 @@ impl BackendState {
                         .chain(
                             if let Some(prefix) = prefix {
                                 if self.settings.feature_words {
-                                    Some(self.words(prefix, doc))
+                                    Some(self.words(prefix, doc, &params))
                                 } else {
                                     None
                                 }
