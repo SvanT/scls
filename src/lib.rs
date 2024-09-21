@@ -419,9 +419,10 @@ impl BackendState {
             text_edit: Some(CompletionTextEdit::InsertAndReplace(InsertReplaceEdit {
                 replace: range,
                 insert: range,
-                new_text: word,
+                new_text: word.clone(),
             })),
             kind: Some(CompletionItemKind::TEXT),
+            sort_text: format!("zzz{}", word).into(),
             ..Default::default()
         })
     }
